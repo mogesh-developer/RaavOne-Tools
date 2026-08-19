@@ -8,9 +8,45 @@ from typing import Dict, Any
 
 from raavone_tools.manager import ToolManager
 from raavone_tools.browser.provider import BrowserProvider
-from raavone_tools.browser.tool import NavigateTool, ScreenshotTool, ScrollTool, ExtractTool
+from raavone_tools.browser.tool import (
+    NavigateTool,
+    BackTool,
+    ForwardTool,
+    ReloadTool,
+    ScreenshotTool,
+    ScrollTool,
+    ExtractTool,
+    ClickTool,
+    FillTool,
+    TypeTool,
+    PressTool,
+    SelectTool,
+    HoverTool,
+    WaitTool,
+    WaitForSelectorTool,
+    GetAttributeTool,
+    NewTabTool,
+    ListTabsTool,
+    SwitchTabTool,
+    CloseTabTool,
+    DownloadTool,
+    UploadTool,
+    GetCookiesTool,
+    ClearCookiesTool,
+)
 from raavone_tools.filesystem.provider import FilesystemProvider
-from raavone_tools.filesystem.tool import WriteFileTool, ReadFileTool, ListDirTool
+from raavone_tools.filesystem.tool import (
+    WriteFileTool,
+    ReadFileTool,
+    ListDirTool,
+    DeleteFileTool,
+    CreateDirTool,
+    CopyTool,
+    MoveTool,
+    ExistsTool,
+    FileInfoTool,
+    SearchTool,
+)
 from raavone_tools.http.provider import HttpProvider
 from raavone_tools.http.tool import HttpGetTool, HttpPostTool, HttpDownloadTool
 from raavone_tools.archive.provider import ArchiveProvider
@@ -63,8 +99,35 @@ async def init_manager():
     manager.register_tool(WriteFileTool(provider=fs_provider))
     manager.register_tool(ReadFileTool(provider=fs_provider))
     manager.register_tool(ListDirTool(provider=fs_provider))
+    manager.register_tool(DeleteFileTool(provider=fs_provider))
+    manager.register_tool(CreateDirTool(provider=fs_provider))
+    manager.register_tool(CopyTool(provider=fs_provider))
+    manager.register_tool(MoveTool(provider=fs_provider))
+    manager.register_tool(ExistsTool(provider=fs_provider))
+    manager.register_tool(FileInfoTool(provider=fs_provider))
+    manager.register_tool(SearchTool(provider=fs_provider))
     
     manager.register_tool(NavigateTool(provider=browser_provider))
+    manager.register_tool(BackTool(provider=browser_provider))
+    manager.register_tool(ForwardTool(provider=browser_provider))
+    manager.register_tool(ReloadTool(provider=browser_provider))
+    manager.register_tool(ClickTool(provider=browser_provider))
+    manager.register_tool(FillTool(provider=browser_provider))
+    manager.register_tool(TypeTool(provider=browser_provider))
+    manager.register_tool(PressTool(provider=browser_provider))
+    manager.register_tool(SelectTool(provider=browser_provider))
+    manager.register_tool(HoverTool(provider=browser_provider))
+    manager.register_tool(WaitTool(provider=browser_provider))
+    manager.register_tool(WaitForSelectorTool(provider=browser_provider))
+    manager.register_tool(GetAttributeTool(provider=browser_provider))
+    manager.register_tool(NewTabTool(provider=browser_provider))
+    manager.register_tool(ListTabsTool(provider=browser_provider))
+    manager.register_tool(SwitchTabTool(provider=browser_provider))
+    manager.register_tool(CloseTabTool(provider=browser_provider))
+    manager.register_tool(DownloadTool(provider=browser_provider))
+    manager.register_tool(UploadTool(provider=browser_provider))
+    manager.register_tool(GetCookiesTool(provider=browser_provider))
+    manager.register_tool(ClearCookiesTool(provider=browser_provider))
     manager.register_tool(ScreenshotTool(provider=browser_provider))
     manager.register_tool(ScrollTool(provider=browser_provider))
     manager.register_tool(ExtractTool(provider=browser_provider))

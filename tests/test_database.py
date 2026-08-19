@@ -82,7 +82,7 @@ async def test_database_workflow():
             # 7. Security Check: Invalid table name SQL injection
             with pytest.raises(ExecutionError) as exc_info2:
                 await manager.execute("db_schema", {"table_name": "projects; DROP TABLE projects"})
-            assert "Security ValidationError" in str(exc_info2.value)
+            assert "Security Validation Error" in str(exc_info2.value)
 
         finally:
             await manager.close_providers()

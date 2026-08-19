@@ -251,3 +251,52 @@ class HttpDownloadTool(BaseTool[HttpProvider]):
             }
         except Exception as e:
             raise ExecutionError(f"HTTP Download failed for {url}: {e}") from e
+
+# --- HTTP Upload Tool ---
+
+class HttpUploadInput(BaseModel):
+    """Input parameters for HTTP file upload (multipart/form-data)."""
+    url: str = Field(..., description="Destination URL for the upload (must include HTTP/HTTPS protocol)")
+    files: Dict[str, str] = Field(..., description="Mapping of form field names to local file paths")
+    headers: Optional[Dict[str, str]] = Field(None, description="Optional HTTP headers")
+    data: Optional[Dict[str, Any]] = Field(None, description="Additional form fields (key/value)")
+    timeout: Optional[float] = Field(None, description="Request timeout in seconds")
+    follow_redirects: Optional[bool] = Field(None, description="Whether to follow redirects")
+
+class HttpUploadTool(BaseTool[HttpProvider]):
+    """Tool that uploads files via multipart/form-data POST request."""
+
+    name: str = "http_upload"
+    description: str = "Upload one or more files to a given URL using multipart/form-data."
+    input_schema: Type[BaseModel] = HttpUploadInput
+
+    async def execute(
+        self,
+        url: str,
+        files: Dict[str, str],
+        headers: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        follow_redirects: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        if not self.provider:
+            raise ProviderError("HttpProvider has not been assigned to this tool.")
+        from raavone_tools.utils import resolve_path_within_workspace
+        multipart_files = {}
+        for field, path_str in files.items():
+            path = resolve_path_within_workspace(Path(path_str))
+            multipart_files[field] = (Path(path).name, open(path, "rb"))
+        try:
+            response = await self.provider.request(
+                "POST",
+                url,
+                headers=headers,
+                data=data,
+                files=multipart_files,
+                timeout=timeout,
+                follow_redirects=follow_redirects,
+            )
+            return _parse_response(response)
+        finally:
+            for _, f in multipart_files.values():
+                f.close()

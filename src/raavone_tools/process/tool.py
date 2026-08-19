@@ -1,15 +1,21 @@
-"""Process execution tools."""
+"""Process execution tools.
+
+This module provides a set of tools for managing system processes. It relies on
+`psutil` for detailed process information and `subprocess` for starting and
+stopping background commands. All spawned processes are tracked in the
+`ProcessProvider.active_processes` registry so they can be inspected, stopped,
+or waited on later.
+"""
 
 import os
 import subprocess
-from typing import Any, Dict, List, Optional, Type
 import psutil
+from typing import Any, Dict, List, Optional, Type
 from pydantic import BaseModel, Field
 
 from raavone_tools.base import BaseTool
 from raavone_tools.exceptions import ExecutionError, ProviderError
 from raavone_tools.process.provider import ProcessProvider
-
 
 # --- Process List Tool ---
 
@@ -27,7 +33,6 @@ class ProcessListTool(BaseTool[ProcessProvider]):
     input_schema: Type[BaseModel] = ProcessListInput
 
     async def execute(self, name_filter: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
-        """Iterate running processes and return details."""
         processes = []
         filter_lower = name_filter.lower() if name_filter else None
 
@@ -35,19 +40,14 @@ class ProcessListTool(BaseTool[ProcessProvider]):
             try:
                 proc_info = proc.info
                 name = proc_info.get("name") or ""
-                
-                # Apply name filter
                 if filter_lower and filter_lower not in name.lower():
                     continue
-
-                # Fetch basic cpu/mem info safely
                 try:
                     cpu = proc.cpu_percent(interval=None)
                     mem = proc.memory_percent()
                 except (psutil.AccessDenied, psutil.NoSuchProcess):
                     cpu = 0.0
                     mem = 0.0
-
                 processes.append({
                     "pid": proc_info["pid"],
                     "name": name,
@@ -55,19 +55,12 @@ class ProcessListTool(BaseTool[ProcessProvider]):
                     "cpu_percent": round(cpu, 2),
                     "memory_percent": round(mem, 2),
                 })
-                
                 if len(processes) >= limit:
                     break
-
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
 
-        return {
-            "status": "success",
-            "processes": processes,
-            "count": len(processes)
-        }
-
+        return {"status": "success", "processes": processes, "count": len(processes)}
 
 # --- Process Start Tool ---
 
@@ -78,45 +71,33 @@ class ProcessStartInput(BaseModel):
 
 
 class ProcessStartTool(BaseTool[ProcessProvider]):
-    """Tool that starts a long-running program in the background."""
+    """Tool that starts a long‑running program in the background."""
 
     name: str = "process_start"
     description: str = "Start a background program/process and return its PID."
     input_schema: Type[BaseModel] = ProcessStartInput
 
     async def execute(self, command: str, working_dir: Optional[str] = None) -> Dict[str, Any]:
-        """Spawn the process in background."""
         if not self.provider:
             raise ProviderError("ProcessProvider has not been assigned to this tool.")
 
         cwd_path = None
         if working_dir:
-            # Let terminal provider handle boundaries, or direct resolve.
-            # We can use default Path resolution relative to current folder or root.
-            cwd_path = str(Path(working_dir).resolve())
+            cwd_path = str(os.path.abspath(working_dir))
 
         try:
-            # Spawn process without blocking (stdout/stderr directed to DEVNULL to avoid buffer blocking)
             proc = subprocess.Popen(
                 command,
                 shell=True,
                 cwd=cwd_path,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
             )
-            
-            # Register it
             self.provider.register_process(proc.pid, proc)
-
-            return {
-                "status": "success",
-                "pid": proc.pid,
-                "command": command,
-                "message": f"Successfully spawned background process with PID {proc.pid}."
-            }
+            return {"status": "success", "pid": proc.pid, "command": command}
         except Exception as e:
             raise ExecutionError(f"Failed to start process: {e}") from e
-
 
 # --- Process Stop Tool ---
 
@@ -133,40 +114,24 @@ class ProcessStopTool(BaseTool[ProcessProvider]):
     input_schema: Type[BaseModel] = ProcessStopInput
 
     async def execute(self, pid: int) -> Dict[str, Any]:
-        """Find the process and stop it."""
         if not self.provider:
             raise ProviderError("ProcessProvider has not been assigned to this tool.")
-
+        # Remove from registry if present
+        self.provider.unregister_process(pid)
         try:
-            # Unregister it from tracking if it was registered
-            self.provider.unregister_process(pid)
-
             proc = psutil.Process(pid)
             proc.terminate()
-            
-            # Wait up to 3 seconds for clean exit
             try:
                 proc.wait(timeout=3)
             except psutil.TimeoutExpired:
-                # Force kill
                 proc.kill()
-
-            return {
-                "status": "success",
-                "pid": pid,
-                "message": f"Successfully terminated process with PID {pid}."
-            }
+            return {"status": "success", "pid": pid, "message": f"Terminated PID {pid}."}
         except psutil.NoSuchProcess:
-            return {
-                "status": "success",
-                "pid": pid,
-                "message": f"Process with PID {pid} is already stopped or does not exist."
-            }
+            return {"status": "success", "pid": pid, "message": "Process does not exist."}
         except psutil.AccessDenied:
-            raise ExecutionError(f"Access denied: Cannot terminate process with PID {pid}.")
+            raise ExecutionError(f"Access denied: cannot terminate PID {pid}.")
         except Exception as e:
             raise ExecutionError(f"Failed to stop process: {e}") from e
-
 
 # --- Process Info Tool ---
 
@@ -183,35 +148,29 @@ class ProcessInfoTool(BaseTool[ProcessProvider]):
     input_schema: Type[BaseModel] = ProcessInfoInput
 
     async def execute(self, pid: int) -> Dict[str, Any]:
-        """Fetch details using psutil."""
         try:
             proc = psutil.Process(pid)
-            
-            # Fetch connections (ports) safely
+            # Connections
             connections = []
             try:
-                connections_fn = getattr(proc, "net_connections", getattr(proc, "connections", None))
-                if connections_fn:
-                    for conn in connections_fn():
+                conn_fn = getattr(proc, "net_connections", getattr(proc, "connections", None))
+                if conn_fn:
+                    for conn in conn_fn():
                         connections.append({
                             "fd": conn.fd,
                             "type": str(conn.type),
                             "local_address": f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else None,
                             "remote_address": f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None,
-                            "status": conn.status
+                            "status": conn.status,
                         })
             except (psutil.AccessDenied, AttributeError):
                 pass
-
-            # Fetch memory stats
+            # Memory
             try:
-                mem_info = proc.memory_info()
-                rss = mem_info.rss
-                vms = mem_info.vms
+                mem = proc.memory_info()
+                rss, vms = mem.rss, mem.vms
             except psutil.AccessDenied:
-                rss = 0
-                vms = 0
-
+                rss = vms = 0
             return {
                 "status": "success",
                 "pid": pid,
@@ -221,11 +180,134 @@ class ProcessInfoTool(BaseTool[ProcessProvider]):
                 "cpu_percent": round(proc.cpu_percent(interval=None), 2),
                 "rss_bytes": rss,
                 "vms_bytes": vms,
-                "connections": connections
+                "connections": connections,
             }
         except psutil.NoSuchProcess:
             raise ExecutionError(f"Process with PID {pid} does not exist.")
         except psutil.AccessDenied:
-            raise ExecutionError(f"Access denied: Cannot read process stats for PID {pid}.")
+            raise ExecutionError(f"Access denied: cannot read PID {pid}.")
         except Exception as e:
             raise ExecutionError(f"Failed to get process info: {e}") from e
+
+# --- Process Restart Tool ---
+
+class ProcessRestartInput(BaseModel):
+    """Input for restarting an existing process by PID."""
+    pid: int = Field(..., description="PID of the process to restart")
+
+
+class ProcessRestartTool(BaseTool[ProcessProvider]):
+    """Tool that restarts a process using its original command line.
+
+    The tool fetches the command line of the target process, stops it, and then
+    spawns a new process with the same command. The new PID is returned.
+    """
+
+    name: str = "process_restart"
+    description: str = "Restart a running process by PID using its original command line."
+    input_schema: Type[BaseModel] = ProcessRestartInput
+
+    async def execute(self, pid: int) -> Dict[str, Any]:
+        if not self.provider:
+            raise ProviderError("ProcessProvider not assigned.")
+        try:
+            proc = psutil.Process(pid)
+            cmdline = proc.cmdline()
+            cwd = proc.cwd()
+        except psutil.NoSuchProcess:
+            raise ExecutionError(f"Process with PID {pid} does not exist.")
+        except Exception as e:
+            raise ExecutionError(f"Unable to retrieve command for PID {pid}: {e}")
+
+        # Stop the old process
+        stop_tool = ProcessStopTool(self.provider)
+        await stop_tool.execute(pid=pid)
+
+        # Start a new process with the same command line
+        command = " ".join(cmdline) if isinstance(cmdline, list) else cmdline
+        start_tool = ProcessStartTool(self.provider)
+        result = await start_tool.execute(command=command, working_dir=cwd)
+        return {"status": "success", "old_pid": pid, "new_pid": result.get("pid"), "message": "Process restarted."}
+
+# --- Process Resources Tool ---
+
+class ProcessResourcesInput(BaseModel):
+    """Input for fetching resource usage of a process."""
+    pid: int = Field(..., description="PID of the process to inspect")
+
+
+class ProcessResourcesTool(BaseTool[ProcessProvider]):
+    """Tool that returns CPU and memory usage for a given PID."""
+
+    name: str = "process_resources"
+    description: str = "Get CPU percent and memory usage of a process."
+    input_schema: Type[BaseModel] = ProcessResourcesInput
+
+    async def execute(self, pid: int) -> Dict[str, Any]:
+        try:
+            proc = psutil.Process(pid)
+            cpu = proc.cpu_percent(interval=0.1)
+            mem = proc.memory_percent()
+            return {"status": "success", "pid": pid, "cpu_percent": round(cpu, 2), "memory_percent": round(mem, 2)}
+        except psutil.NoSuchProcess:
+            raise ExecutionError(f"PID {pid} does not exist.")
+        except Exception as e:
+            raise ExecutionError(f"Failed to fetch resources: {e}")
+
+# --- Process Output Tool ---
+
+class ProcessOutputInput(BaseModel):
+    """Input for capturing stdout/stderr of a tracked process."""
+    pid: int = Field(..., description="PID of the process whose output should be captured")
+    timeout: int = Field(5, description="Maximum seconds to wait for output (default 5)")
+
+
+class ProcessOutputTool(BaseTool[ProcessProvider]):
+    """Tool that reads the stdout/stderr of a background process.
+
+    It only works for processes that were started via `ProcessStartTool` which
+    records the `subprocess.Popen` object with pipes enabled.
+    """
+
+    name: str = "process_output"
+    description: str = "Capture stdout and stderr of a managed background process."
+    input_schema: Type[BaseModel] = ProcessOutputInput
+
+    async def execute(self, pid: int, timeout: int = 5) -> Dict[str, Any]:
+        proc = self.provider.active_processes.get(pid)
+        if not proc:
+            raise ExecutionError(f"No tracked process with PID {pid}.")
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+            return {"status": "success", "pid": pid, "stdout": stdout, "stderr": stderr}
+        except subprocess.TimeoutExpired:
+            raise ExecutionError(f"Process {pid} did not produce output within {timeout}s.")
+        except Exception as e:
+            raise ExecutionError(f"Failed to capture output: {e}")
+
+# --- Process Wait Tool ---
+
+class ProcessWaitInput(BaseModel):
+    """Input for waiting on a process to finish."""
+    pid: int = Field(..., description="PID of the process to wait for")
+    timeout: Optional[int] = Field(None, description="Maximum seconds to wait (None = indefinite)")
+
+
+class ProcessWaitTool(BaseTool[ProcessProvider]):
+    """Tool that blocks until the specified process exits or timeout elapses."""
+
+    name: str = "process_wait"
+    description: str = "Wait for a process to terminate, optionally with a timeout."
+    input_schema: Type[BaseModel] = ProcessWaitInput
+
+    async def execute(self, pid: int, timeout: Optional[int] = None) -> Dict[str, Any]:
+        proc = self.provider.active_processes.get(pid)
+        if not proc:
+            raise ExecutionError(f"No tracked process with PID {pid}.")
+        try:
+            proc.wait(timeout=timeout)
+            return {"status": "success", "pid": pid, "message": "Process terminated."}
+        except subprocess.TimeoutExpired:
+            return {"status": "timeout", "pid": pid, "message": f"Process still running after {timeout}s."}
+        except Exception as e:
+            raise ExecutionError(f"Error waiting for process: {e}")

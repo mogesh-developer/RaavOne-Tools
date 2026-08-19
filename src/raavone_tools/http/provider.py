@@ -34,3 +34,36 @@ class HttpProvider(BaseProvider):
         if not self.client:
             await self.initialize()
         return self.client
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        follow_redirects: Optional[bool] = None,
+        stream: bool = False,
+    ) -> httpx.Response:
+        """Generic request wrapper supporting all HTTP verbs and multipart upload.
+        Parameters are passed directly to httpx.AsyncClient.request.
+        """
+        client = await self.get_client()
+        request_kwargs: Dict[str, Any] = {
+            "url": url,
+            "headers": headers,
+            "params": params,
+            "json": json,
+            "data": data,
+            "files": files,
+            "timeout": timeout,
+            "follow_redirects": follow_redirects,
+        }
+        request_kwargs = {k: v for k, v in request_kwargs.items() if v is not None}
+        response = await client.request(method, **request_kwargs, stream=stream)
+        response.raise_for_status()
+        return response

@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 import zipfile
 from pydantic import BaseModel, Field
 
@@ -169,3 +169,85 @@ class ListArchiveTool(BaseTool[ArchiveProvider]):
             raise
         except Exception as e:
             raise ExecutionError(f"Failed to list archive contents: {e}") from e
+
+# --- Archive Info Tool ---
+
+class ArchiveInfoInput(BaseModel):
+    """Input parameters for retrieving archive information."""
+    archive_path: str = Field(..., description="Path to the ZIP archive file to inspect")
+
+class ArchiveInfoTool(BaseTool[ArchiveProvider]):
+    """Tool that returns basic metadata about a ZIP archive."""
+
+    name: str = "archive_info"
+    description: str = "Retrieve basic information (type, entry count, sizes) about a ZIP archive."
+    input_schema: Type[BaseModel] = ArchiveInfoInput
+
+    async def execute(self, archive_path: str) -> Dict[str, Any]:
+        if not self.provider:
+            raise ProviderError("ArchiveProvider has not been assigned to this tool.")
+        info = await self.provider.info(archive_path)
+        return {"status": "success", "info": info}
+
+# --- Create TAR Archive Tool ---
+
+class CreateTarArchiveInput(BaseModel):
+    """Input parameters for creating a TAR archive."""
+    source_path: str = Field(..., description="Path of the file or directory to compress into TAR")
+    archive_path: str = Field(..., description="Destination filepath for the TAR archive (e.g., .tar.gz)")
+    compression: str = Field(default="gz", description="Compression type: 'gz', 'bz2', or '' for none")
+
+class CreateTarArchiveTool(BaseTool[ArchiveProvider]):
+    """Tool to create a TAR (optionally compressed) archive from a source path."""
+
+    name: str = "archive_create_tar"
+    description: str = "Create a TAR archive (supports gzip/bzip2) from a file or directory."
+    input_schema: Type[BaseModel] = CreateTarArchiveInput
+
+    async def execute(self, source_path: str, archive_path: str, compression: str = "gz") -> Dict[str, Any]:
+        if not self.provider:
+            raise ProviderError("ArchiveProvider has not been assigned to this tool.")
+        result = await self.provider.create_tar(source_path, archive_path, compression)
+        return {"status": "success", **result}
+
+# --- Extract TAR Archive Tool ---
+
+class ExtractTarArchiveInput(BaseModel):
+    """Input parameters for extracting a TAR archive."""
+    archive_path: str = Field(..., description="Path to the TAR archive file to extract")
+    dest_path: str = Field(..., description="Destination directory where files should be extracted")
+    members: Optional[List[str]] = Field(None, description="Optional list of member names to extract (default extracts all)")
+
+class ExtractTarArchiveTool(BaseTool[ArchiveProvider]):
+    """Tool that extracts a TAR archive safely, optionally limited to specific members."""
+
+    name: str = "archive_extract_tar"
+    description: str = "Extract a TAR archive to a target directory with safety checks."
+    input_schema: Type[BaseModel] = ExtractTarArchiveInput
+
+    async def execute(self, archive_path: str, dest_path: str, members: Optional[List[str]] = None) -> Dict[str, Any]:
+        if not self.provider:
+            raise ProviderError("ArchiveProvider has not been assigned to this tool.")
+        result = await self.provider.extract_tar(archive_path, dest_path, members)
+        return {"status": "success", **result}
+
+# --- Selective Extract Tool ---
+
+class SelectiveExtractInput(BaseModel):
+    """Input parameters for selective extraction from a ZIP archive using glob patterns."""
+    archive_path: str = Field(..., description="Path to the ZIP archive file.")
+    dest_path: str = Field(..., description="Destination directory for extracted files.")
+    include_patterns: List[str] = Field(..., description="List of glob patterns to include (e.g., ['*.txt', 'data/*']).")
+
+class SelectiveExtractTool(BaseTool[ArchiveProvider]):
+    """Tool that extracts only matching files from a ZIP archive based on glob patterns."""
+
+    name: str = "archive_selective_extract"
+    description: str = "Extract a subset of files from a ZIP archive matching provided glob patterns."
+    input_schema: Type[BaseModel] = SelectiveExtractInput
+
+    async def execute(self, archive_path: str, dest_path: str, include_patterns: List[str]) -> Dict[str, Any]:
+        if not self.provider:
+            raise ProviderError("ArchiveProvider has not been assigned to this tool.")
+        result = await self.provider.selective_extract(archive_path, dest_path, include_patterns)
+        return {"status": "success", **result}

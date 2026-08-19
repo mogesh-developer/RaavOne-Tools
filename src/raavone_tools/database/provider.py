@@ -122,21 +122,50 @@ class SQLiteProvider(BaseDatabaseProvider):
         return [row["name"] for row in rows]
 
     async def get_schema(self, table_name: str) -> List[Dict[str, Any]]:
-        """Query schema structure metadata safely."""
-        if not table_name.isidentifier():
-            raise ExecutionError(f"Security ValidationError: Invalid table name identifier '{table_name}'.")
+        """Return the column metadata list for the specified table."""
+        if not table_name or not table_name.isidentifier():
+            raise SecurityValidationError(
+                f"Security Validation Error: Invalid table name '{table_name}'"
+            )
+        rows = await self.query(f"PRAGMA table_info({table_name})", [])
+        return [
+            {
+                "cid": row.get("cid"),
+                "name": row.get("name"),
+                "type": row.get("type"),
+                "notnull": row.get("notnull"),
+                "default": row.get("dflt_value"),
+                "primary_key": row.get("pk"),
+            }
+            for row in rows
+        ]
 
-        sql = f"PRAGMA table_info({table_name});"
-        rows = await self.query(sql, [])
-        
-        columns = []
-        for r in rows:
-            columns.append({
-                "column_id": r.get("cid"),
-                "name": r.get("name"),
-                "type": r.get("type"),
-                "notnull": bool(r.get("notnull")),
-                "default_value": r.get("dflt_value"),
-                "pk": bool(r.get("pk"))
-            })
-        return columns
+    async def begin_transaction(self) -> None:
+        """Begin a transaction."""
+        # Using execute to run BEGIN; no params needed
+        await self.execute('BEGIN', [])
+
+    async def commit_transaction(self) -> None:
+        """Commit the current transaction."""
+        await self.execute('COMMIT', [])
+
+    async def rollback_transaction(self) -> None:
+        """Rollback the current transaction."""
+        await self.execute('ROLLBACK', [])
+
+    async def db_info(self) -> Dict[str, Any]:
+        """Return basic information about the SQLite database."""
+        # Get SQLite version
+        version_rows = await self.query('SELECT sqlite_version() AS version', [])
+        version = version_rows[0].get('version') if version_rows else 'unknown'
+        # File size
+        size_bytes = self.db_path.stat().st_size if self.db_path.exists() else 0
+        # Table count
+        tables = await self.list_tables()
+        return {
+            'type': 'sqlite',
+            'version': version,
+            'size_bytes': size_bytes,
+            'tables': len(tables),
+            'table_names': tables,
+        }

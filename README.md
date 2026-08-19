@@ -12,6 +12,8 @@ A high-performance, modular tooling framework and provider ecosystem for **RaavO
 - Modernized button-style links and callouts
 - Stronger typography for headings and body readability
 
+![RaavOne Tools Banner](assets/raavone_tools_banner.png)
+
 ### Quick Actions
 
 [![Install](https://img.shields.io/badge/Install-pip%20install-blue?style=for-the-badge)](#-installation)
@@ -47,6 +49,8 @@ graph TD
 - **`raavone_tools.exceptions`**: Custom exception hierarchy for clean error propagation.
 - **`raavone_tools.browser`**: Web interaction provider (driven by Playwright) and browser tools.
 - **`raavone_tools.filesystem`**: Safe filesystem utilities constrained to a workspace root.
+- **`raavone_tools.docker`**: Full Docker management suite using the Docker SDK.
+- **`raavone_tools.pdf`**: PDF manipulation utilities powered by `pypdf`.
 
 ---
 
@@ -61,6 +65,12 @@ pip install -e .
 # With browser automation support (Playwright)
 pip install -e .[browser]
 playwright install chromium
+
+# Optional Docker support (Docker SDK)
+pip install -e .[docker]
+
+# Optional PDF support (pypdf)
+pip install -e .[pdf]
 ```
 
 ---
@@ -86,6 +96,36 @@ manager.register_tool(ReadFileTool(provider=fs_provider))
 # Execute a tool by name with parameters
 result = manager.execute("read_file", {"path": "config.json"})
 print(result)
+```
+
+### Docker Example
+
+```python
+from raavone_tools.docker.provider import DockerProvider
+from raavone_tools.docker.tool import DockerListContainersTool
+from raavone_tools.manager import ToolManager
+
+manager = ToolManager()
+provider = DockerProvider()
+manager.register_tool(DockerListContainersTool(provider=provider))
+
+containers = manager.execute("docker_list_containers", {"all_containers": True})
+print(containers)
+```
+
+### PDF Example
+
+```python
+from raavone_tools.pdf.provider import PdfProvider
+from raavone_tools.pdf.tool import PdfExtractTextTool
+from raavone_tools.manager import ToolManager
+
+manager = ToolManager()
+pdf_provider = PdfProvider()
+manager.register_tool(PdfExtractTextTool(provider=pdf_provider))
+
+text = manager.execute("pdf_extract_text", {"pdf_path": "sample.pdf"})
+print(text)
 ```
 
 ---

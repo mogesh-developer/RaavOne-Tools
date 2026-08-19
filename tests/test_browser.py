@@ -5,7 +5,33 @@ import pytest
 
 from raavone_tools.manager import ToolManager
 from raavone_tools.browser.provider import BrowserProvider
-from raavone_tools.browser.tool import NavigateTool, ClickTool, ScreenshotTool, ScrollTool, ExtractTool
+from raavone_tools.exceptions import ExecutionError
+from raavone_tools.browser.tool import (
+    BackTool,
+    ClearCookiesTool,
+    ClickTool,
+    CloseTabTool,
+    DownloadTool,
+    ExtractTool,
+    FillTool,
+    ForwardTool,
+    GetAttributeTool,
+    GetCookiesTool,
+    HoverTool,
+    ListTabsTool,
+    NavigateTool,
+    NewTabTool,
+    PressTool,
+    ReloadTool,
+    ScreenshotTool,
+    ScrollTool,
+    SelectTool,
+    SwitchTabTool,
+    TypeTool,
+    UploadTool,
+    WaitForSelectorTool,
+    WaitTool,
+)
 
 
 async def get_browser_manager():
@@ -13,7 +39,26 @@ async def get_browser_manager():
     manager = ToolManager()
     provider = BrowserProvider(headless=True)
     manager.register_tool(NavigateTool(provider=provider))
+    manager.register_tool(BackTool(provider=provider))
+    manager.register_tool(ForwardTool(provider=provider))
+    manager.register_tool(ReloadTool(provider=provider))
     manager.register_tool(ClickTool(provider=provider))
+    manager.register_tool(FillTool(provider=provider))
+    manager.register_tool(TypeTool(provider=provider))
+    manager.register_tool(PressTool(provider=provider))
+    manager.register_tool(SelectTool(provider=provider))
+    manager.register_tool(HoverTool(provider=provider))
+    manager.register_tool(WaitTool(provider=provider))
+    manager.register_tool(WaitForSelectorTool(provider=provider))
+    manager.register_tool(GetAttributeTool(provider=provider))
+    manager.register_tool(NewTabTool(provider=provider))
+    manager.register_tool(ListTabsTool(provider=provider))
+    manager.register_tool(SwitchTabTool(provider=provider))
+    manager.register_tool(CloseTabTool(provider=provider))
+    manager.register_tool(DownloadTool(provider=provider))
+    manager.register_tool(UploadTool(provider=provider))
+    manager.register_tool(GetCookiesTool(provider=provider))
+    manager.register_tool(ClearCookiesTool(provider=provider))
     manager.register_tool(ScreenshotTool(provider=provider))
     manager.register_tool(ScrollTool(provider=provider))
     manager.register_tool(ExtractTool(provider=provider))
@@ -140,6 +185,270 @@ async def test_extract_table():
 
 
 @pytest.mark.asyncio
+async def test_back_forward_reload():
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        pytest.skip("Playwright not installed, skipping browser tests")
+
+    manager = await get_browser_manager()
+    try:
+        page1 = "data:text/html,<h1>Page One</h1>"
+        page2 = "data:text/html,<h1>Page Two</h1>"
+
+        await manager.execute("navigate", {"url": page1})
+        await manager.execute("navigate", {"url": page2})
+        h1 = await manager.execute("extract", {"mode": "text", "selector": "h1"})
+        assert h1["data"] == ["Page Two"]
+
+        # Back to page one
+        back_res = await manager.execute("back", {})
+        assert back_res["status"] == "success"
+        assert back_res["url"].startswith("data:")
+        h1 = await manager.execute("extract", {"mode": "text", "selector": "h1"})
+        assert h1["data"] == ["Page One"]
+
+        # Forward back to page two
+        fwd_res = await manager.execute("forward", {})
+        assert fwd_res["status"] == "success"
+        h1 = await manager.execute("extract", {"mode": "text", "selector": "h1"})
+        assert h1["data"] == ["Page Two"]
+
+        # Reload stays on page two
+        reload_res = await manager.execute("reload", {})
+        assert reload_res["status"] == "success"
+        h1 = await manager.execute("extract", {"mode": "text", "selector": "h1"})
+        assert h1["data"] == ["Page Two"]
+    finally:
+        await manager.close_providers()
+
+
+@pytest.mark.asyncio
+async def test_browser_interaction_tools():
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        pytest.skip("Playwright not installed, skipping browser tests")
+
+    manager = ToolManager()
+    provider = BrowserProvider(headless=True)
+    manager.register_tool(NavigateTool(provider=provider))
+    manager.register_tool(FillTool(provider=provider))
+    manager.register_tool(TypeTool(provider=provider))
+    manager.register_tool(PressTool(provider=provider))
+    manager.register_tool(SelectTool(provider=provider))
+    manager.register_tool(HoverTool(provider=provider))
+    manager.register_tool(WaitTool(provider=provider))
+    manager.register_tool(WaitForSelectorTool(provider=provider))
+    manager.register_tool(GetAttributeTool(provider=provider))
+    manager.register_tool(ExtractTool(provider=provider))
+    await manager.initialize_providers()
+
+    try:
+        # fill sets the input's value property
+        await manager.execute(
+            "navigate",
+            {"url": "data:text/html,<input id='q' value=''>"}
+        )
+        await manager.execute("fill", {"selector": "#q", "value": "hello world"})
+        page = await provider.get_page()
+        assert await page.evaluate("document.getElementById('q').value") == "hello world"
+
+        # get_attribute reads a real HTML attribute
+        res = await manager.execute("get_attribute", {"selector": "#q", "attribute": "id"})
+        assert res["status"] == "success"
+        assert res["values"] == ["q"]
+
+        # type appends into the input
+        await manager.execute("type", {"selector": "#q", "text": "!!"})
+        assert await page.evaluate("document.getElementById('q').value") == "hello world!!"
+
+        # press Enter triggers the onkeydown handler
+        page = await provider.get_page()
+        await manager.execute(
+            "navigate",
+            {"url": (
+                "data:text/html,"
+                "<input id='k' onkeydown=\"if(event.key==='Enter'){"
+                "document.getElementById('out').innerText='pressed'}\">"
+                "<div id='out'></div>"
+            )}
+        )
+        await manager.execute("press", {"selector": "#k", "key": "Enter"})
+        res = await manager.execute("extract", {"mode": "text", "selector": "#out"})
+        assert res["data"] == ["pressed"]
+
+        # select option
+        await manager.execute(
+            "navigate",
+            {"url": (
+                "data:text/html,"
+                "<select id='s'><option value='py'>Python</option>"
+                "<option value='js'>Python</option></select>"
+            )}
+        )
+        await manager.execute("select", {"selector": "#s", "value": "js"})
+        page = await provider.get_page()
+        selected = await page.evaluate("document.getElementById('s').value")
+        assert selected == "js"
+
+        # select by index
+        await manager.execute("select", {"selector": "#s", "index": 0})
+        selected = await page.evaluate("document.getElementById('s').value")
+        assert selected == "py"
+
+        # hover triggers mouseover handler
+        await manager.execute(
+            "navigate",
+            {"url": (
+                "data:text/html,"
+                "<div id='h' onmouseover=\"document.getElementById('h').innerText='hovered'\">x</div>"
+            )}
+        )
+        await manager.execute("hover", {"selector": "#h"})
+        res = await manager.execute("extract", {"mode": "text", "selector": "#h"})
+        assert res["data"] == ["hovered"]
+
+        # wait_for_selector success + timeout
+        await manager.execute(
+            "navigate",
+            {"url": "data:text/html,<div id='late'>content</div>"}
+        )
+        res = await manager.execute(
+            "wait_for_selector", {"selector": "#late", "state": "visible", "timeout": 2000}
+        )
+        assert res["status"] == "success"
+
+        with pytest.raises(ExecutionError) as exc_info:
+            await manager.execute(
+                "wait_for_selector", {"selector": "#never-appears", "timeout": 300}
+            )
+        assert "waiting for selector" in str(exc_info.value).lower() or "timeout" in str(exc_info.value).lower()
+
+        # wait (load state)
+        res = await manager.execute("wait", {"timeout": 2000, "state": "load"})
+        assert res["status"] == "success"
+    finally:
+        await manager.close_providers()
+
+
+@pytest.mark.asyncio
+async def test_browser_tab_tools():
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        pytest.skip("Playwright not installed, skipping browser tests")
+
+    manager = await get_browser_manager()
+    try:
+        await manager.execute("navigate", {"url": "data:text/html,<h1>One</h1>"})
+        res = await manager.execute("new_tab", {"url": "data:text/html,<h1>Two</h1>"})
+        assert res["status"] == "success"
+
+        tabs = await manager.execute("list_tabs", {})
+        assert tabs["count"] == 2
+        assert any(t["active"] for t in tabs["tabs"])
+
+        # Active tab is the new one
+        h1 = await manager.execute("extract", {"mode": "text", "selector": "h1"})
+        assert h1["data"] == ["Two"]
+
+        # Switch by index
+        res = await manager.execute("switch_tab", {"index": 0})
+        assert res["status"] == "success"
+        h1 = await manager.execute("extract", {"mode": "text", "selector": "h1"})
+        assert h1["data"] == ["One"]
+
+        # Switch by URL substring
+        res = await manager.execute("switch_tab", {"url": "<h1>Two</h1>"})
+        h1 = await manager.execute("extract", {"mode": "text", "selector": "h1"})
+        assert h1["data"] == ["Two"]
+
+        # Close active tab -> one tab remains
+        res = await manager.execute("close_tab", {})
+        assert res["status"] == "success"
+        assert res["remaining_tabs"] == 1
+
+        # Closing the last tab is blocked
+        with pytest.raises(ExecutionError):
+            await manager.execute("close_tab", {})
+    finally:
+        await manager.close_providers()
+
+
+@pytest.mark.asyncio
+async def test_browser_download_upload_cookies():
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        pytest.skip("Playwright not installed, skipping browser tests")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        manager = ToolManager()
+        provider = BrowserProvider(headless=True, workspace_root=Path(tmpdir))
+        manager.register_tool(NavigateTool(provider=provider))
+        manager.register_tool(DownloadTool(provider=provider))
+        manager.register_tool(UploadTool(provider=provider))
+        manager.register_tool(GetCookiesTool(provider=provider))
+        manager.register_tool(ClearCookiesTool(provider=provider))
+        manager.register_tool(ExtractTool(provider=provider))
+        await manager.initialize_providers()
+
+        try:
+            # download by URL
+            out_path = os.path.join(tmpdir, "page.html")
+            res = await manager.execute("download", {"url": "https://example.com", "path": out_path})
+            assert res["status"] == "success"
+            assert os.path.exists(out_path)
+            assert os.path.getsize(out_path) > 0
+
+            # upload to a file input
+            upload_src = os.path.join(tmpdir, "upload.txt")
+            with open(upload_src, "w") as f:
+                f.write("upload payload")
+
+            await manager.execute(
+                "navigate",
+                {"url": "data:text/html,<input id='f' type='file'>"}
+            )
+            res = await manager.execute("upload", {"selector": "#f", "path": upload_src})
+            assert res["status"] == "success"
+            page = await provider.get_page()
+            name = await page.evaluate("document.getElementById('f').files[0].name")
+            assert name == "upload.txt"
+
+            # cookies: inject one, read, then clear
+            await manager.execute("navigate", {"url": "https://example.com"})
+            context = await provider.get_context()
+            await context.add_cookies([{
+                "name": "session_id",
+                "value": "abc123",
+                "domain": "example.com",
+                "path": "/",
+            }])
+            res = await manager.execute("get_cookies", {})
+            assert res["status"] == "success"
+            assert res["count"] >= 1
+            names = [c["name"] for c in res["cookies"]]
+            assert "session_id" in names
+
+            res = await manager.execute("clear_cookies", {})
+            assert res["status"] == "success"
+            res = await manager.execute("get_cookies", {})
+            assert res["count"] == 0
+
+            # download outside workspace is rejected
+            with pytest.raises(ExecutionError) as exc_info:
+                await manager.execute(
+                    "download",
+                    {"url": "https://example.com", "path": os.path.join(tmpdir, "..", "escape.html")},
+                )
+            assert "Security Validation Error" in str(exc_info.value)
+        finally:
+            await manager.close_providers()
+
+
+@pytest.mark.asyncio
 async def test_browser_tools():
     # Only run browser tests if playwright is available and installed
     try:
@@ -150,6 +459,9 @@ async def test_browser_tools():
     manager = ToolManager()
     provider = BrowserProvider(headless=True)
     manager.register_tool(NavigateTool(provider=provider))
+    manager.register_tool(BackTool(provider=provider))
+    manager.register_tool(ForwardTool(provider=provider))
+    manager.register_tool(ReloadTool(provider=provider))
     manager.register_tool(ClickTool(provider=provider))
     manager.register_tool(ScreenshotTool(provider=provider))
     manager.register_tool(ScrollTool(provider=provider))
