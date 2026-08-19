@@ -12,6 +12,8 @@ from raavone_tools.archive.provider import ArchiveProvider
 from raavone_tools.archive.tool import CreateArchiveTool, ExtractArchiveTool, ListArchiveTool
 from raavone_tools.git.provider import GitProvider
 from raavone_tools.git.tool import GitStatusTool, GitLogTool
+from raavone_tools.process.provider import ProcessProvider
+from raavone_tools.process.tool import ProcessListTool, ProcessStartTool, ProcessStopTool, ProcessInfoTool
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -55,6 +57,13 @@ async def main():
     git_provider = GitProvider(workspace_root=Path("."))
     manager.register_tool(GitStatusTool(provider=git_provider))
     manager.register_tool(GitLogTool(provider=git_provider))
+    
+    # Register Process tools
+    process_provider = ProcessProvider()
+    manager.register_tool(ProcessListTool(provider=process_provider))
+    manager.register_tool(ProcessStartTool(provider=process_provider))
+    manager.register_tool(ProcessStopTool(provider=process_provider))
+    manager.register_tool(ProcessInfoTool(provider=process_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -185,6 +194,25 @@ async def main():
         git_log_res = await manager.execute("git_log", {"limit": 3})
         for commit in git_log_res.get("commits", []):
             print(f"  - [{commit['hash'][:7]}] {commit['message']} ({commit['author']} on {commit['date']})")
+
+        # 9e. Process Action: Start background task and monitor
+        print("\n⚙️ [Process] Spawning background task...")
+        bg_proc = await manager.execute("process_start", {"command": 'python -c "import time; time.sleep(15)"'})
+        bg_pid = bg_proc.get("pid")
+        print(f"✅ Process started successfully with PID: {bg_pid}")
+
+        print("⚙️ [Process] Fetching details for spawned PID...")
+        proc_info_res = await manager.execute("process_info", {"pid": bg_pid})
+        print(f"✅ Active state: {proc_info_res.get('status_state')} | Memory RSS: {proc_info_res.get('rss_bytes')} bytes")
+
+        print("⚙️ [Process] Querying system for python processes...")
+        proc_list_res = await manager.execute("process_list", {"name_filter": "python", "limit": 3})
+        for p in proc_list_res.get("processes", []):
+            print(f"  - PID {p['pid']}: {p['name']} ({p['status']})")
+
+        print("⚙️ [Process] Stopping spawned process...")
+        await manager.execute("process_stop", {"pid": bg_pid})
+        print("✅ Process stopped successfully.")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")
