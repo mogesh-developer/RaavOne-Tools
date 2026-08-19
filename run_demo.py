@@ -14,6 +14,8 @@ from raavone_tools.git.provider import GitProvider
 from raavone_tools.git.tool import GitStatusTool, GitLogTool
 from raavone_tools.process.provider import ProcessProvider
 from raavone_tools.process.tool import ProcessListTool, ProcessStartTool, ProcessStopTool, ProcessInfoTool
+from raavone_tools.python.provider import PythonProvider
+from raavone_tools.python.tool import PythonExecuteTool
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -64,6 +66,10 @@ async def main():
     manager.register_tool(ProcessStartTool(provider=process_provider))
     manager.register_tool(ProcessStopTool(provider=process_provider))
     manager.register_tool(ProcessInfoTool(provider=process_provider))
+    
+    # Register Python tools
+    python_provider = PythonProvider(workspace_root=sandbox_dir)
+    manager.register_tool(PythonExecuteTool(provider=python_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -213,6 +219,18 @@ async def main():
         print("⚙️ [Process] Stopping spawned process...")
         await manager.execute("process_stop", {"pid": bg_pid})
         print("✅ Process stopped successfully.")
+
+        # 9f. Python Action: Execute inline calculation and logic
+        print("\n🐍 [Python] Running PythonExecuteTool...")
+        calc_code = (
+            "import json\n"
+            "numbers = [10, 20, 30, 40, 50]\n"
+            "avg = sum(numbers) / len(numbers)\n"
+            "print(json.dumps({'average': avg, 'status': 'calculated'}))"
+        )
+        python_res = await manager.execute("python_execute", {"code": calc_code})
+        print(f"✅ Python Exit Code: {python_res.get('exit_code')}")
+        print(f"📦 Python stdout: {python_res.get('stdout')}")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")
