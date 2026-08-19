@@ -92,6 +92,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             requested = "index.html"
         return str(root / requested)
 
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
     def do_GET(self):
         if self.path == "/api/status":
             self.send_response(200)

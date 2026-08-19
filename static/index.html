@@ -255,9 +255,12 @@
             });
 
             log(`Triggered execution for ${info.name}`, "system");
+            
+            // Dynamically resolve target URL if opened directly from filesystem
+            const endpoint = window.location.protocol === "file:" ? "http://localhost:8000/api/execute" : "/api/execute";
 
             try {
-                const response = await fetch("/api/execute", {
+                const response = await fetch(endpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ tool: selectedTool, arguments: args })
