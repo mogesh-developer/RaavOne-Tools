@@ -1,6 +1,22 @@
 # 🛠️ RaavOne Tools
 
-A high-performance, modular tooling framework and provider ecosystem for **RaavOne Nexus OS**. This package provides core interfaces, execution managers, and native tool implementations for browser automation and filesystem operations.
+A high-performance, modular tooling framework and provider ecosystem for **RaavOne Tools**. This package provides core interfaces, execution managers, and native tool implementations for browser, filesystem, and extensible provider-driven automation.
+
+---
+
+## 🎨 UI Refresh Highlights
+
+- Improved layout and section grouping for faster scanning
+- Better spacing and cleaner visual hierarchy
+- Refined color accents and badge consistency
+- Modernized button-style links and callouts
+- Stronger typography for headings and body readability
+
+### Quick Actions
+
+[![Install](https://img.shields.io/badge/Install-pip%20install-blue?style=for-the-badge)](#-installation)
+[![Quick Start](https://img.shields.io/badge/Run-Quick%20Start-6f42c1?style=for-the-badge)](#-quick-start)
+[![Tests](https://img.shields.io/badge/Test-pytest-1f883d?style=for-the-badge)](#-development--testing)
 
 ---
 
