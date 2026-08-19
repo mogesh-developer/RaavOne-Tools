@@ -15,7 +15,7 @@ from raavone_tools.git.tool import GitStatusTool, GitLogTool
 from raavone_tools.process.provider import ProcessProvider
 from raavone_tools.process.tool import ProcessListTool, ProcessStartTool, ProcessStopTool, ProcessInfoTool
 from raavone_tools.python.provider import PythonProvider
-from raavone_tools.python.tool import PythonExecuteTool
+from raavone_tools.python.tool import PythonExecuteTool, PythonRunFileTool, PythonEnvInfoTool
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -70,6 +70,8 @@ async def main():
     # Register Python tools
     python_provider = PythonProvider(workspace_root=sandbox_dir)
     manager.register_tool(PythonExecuteTool(provider=python_provider))
+    manager.register_tool(PythonRunFileTool(provider=python_provider))
+    manager.register_tool(PythonEnvInfoTool(provider=python_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -231,6 +233,12 @@ async def main():
         python_res = await manager.execute("python_execute", {"code": calc_code})
         print(f"✅ Python Exit Code: {python_res.get('exit_code')}")
         print(f"📦 Python stdout: {python_res.get('stdout')}")
+
+        # 9g. Python Action: Get environment stats
+        print("\n🐍 [Python] Fetching python environment details...")
+        env_res = await manager.execute("python_env_info", {})
+        print(f"✅ Python Version: {env_res.get('python_version').splitlines()[0]}")
+        print(f"📦 Installed packages count: {len(env_res.get('installed_packages', {}))}")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")

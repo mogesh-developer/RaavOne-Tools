@@ -3,7 +3,7 @@
 import sys
 import asyncio
 from pathlib import Path
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 from raavone_tools.base import BaseProvider
 from raavone_tools.exceptions import SecurityValidationError
@@ -45,9 +45,10 @@ class PythonProvider(BaseProvider):
 
         return resolved
 
-    async def run_python_script(self, script_path: Path, timeout: int = 15) -> Tuple[int, str, str]:
+    async def run_python_script(self, script_path: Path, args: List[str] = None, timeout: int = 15) -> Tuple[int, str, str]:
         """Execute a python script file asynchronously using sys.executable with a timeout."""
-        cmd = [sys.executable, str(script_path)]
+        script_args = args if args else []
+        cmd = [sys.executable, str(script_path)] + script_args
         
         process = await asyncio.create_subprocess_exec(
             *cmd,
