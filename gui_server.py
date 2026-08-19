@@ -23,6 +23,8 @@ from raavone_tools.python.provider import PythonProvider
 from raavone_tools.python.tool import PythonExecuteTool, PythonEnvInfoTool
 from raavone_tools.search.provider import SearchProvider
 from raavone_tools.search.tool import WebSearchTool
+from raavone_tools.database.provider import DatabaseProvider
+from raavone_tools.database.tool import DbQueryTool, DbExecuteTool, DbTablesTool, DbSchemaTool
 
 # Global Manager and Loop
 manager = ToolManager()
@@ -78,6 +80,13 @@ async def init_manager():
     manager.register_tool(PythonEnvInfoTool(provider=python_provider))
     
     manager.register_tool(WebSearchTool(provider=search_provider))
+    
+    # Register Database tools
+    database_provider = DatabaseProvider(workspace_root=sandbox_dir)
+    manager.register_tool(DbQueryTool(provider=database_provider))
+    manager.register_tool(DbExecuteTool(provider=database_provider))
+    manager.register_tool(DbTablesTool(provider=database_provider))
+    manager.register_tool(DbSchemaTool(provider=database_provider))
 
     await manager.initialize_providers()
     print("✅ All providers successfully initialized in async background thread.")

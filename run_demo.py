@@ -18,6 +18,8 @@ from raavone_tools.python.provider import PythonProvider
 from raavone_tools.python.tool import PythonExecuteTool, PythonRunFileTool, PythonEnvInfoTool
 from raavone_tools.search.provider import SearchProvider
 from raavone_tools.search.tool import WebSearchTool
+from raavone_tools.database.provider import DatabaseProvider
+from raavone_tools.database.tool import DbQueryTool, DbExecuteTool, DbTablesTool, DbSchemaTool
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -78,6 +80,13 @@ async def main():
     # Register Search tools
     search_provider = SearchProvider()
     manager.register_tool(WebSearchTool(provider=search_provider))
+    
+    # Register Database tools
+    database_provider = DatabaseProvider(workspace_root=sandbox_dir)
+    manager.register_tool(DbQueryTool(provider=database_provider))
+    manager.register_tool(DbExecuteTool(provider=database_provider))
+    manager.register_tool(DbTablesTool(provider=database_provider))
+    manager.register_tool(DbSchemaTool(provider=database_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -252,6 +261,27 @@ async def main():
         print(f"✅ Search Status: {search_res.get('status')}")
         for idx, result in enumerate(search_res.get("results", [])):
             print(f"  Result {idx+1}: {result.get('title')} ({result.get('url')})")
+
+        # 9i. Database Action: Initialize and query SQLite database
+        print("\n🗄️ [Database] Creating sqlite database and projects table...")
+        db_file = "demo.db"
+        await manager.execute("db_execute", {
+            "db_path": db_file,
+            "sql": "CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name TEXT, category TEXT);"
+        })
+        await manager.execute("db_execute", {
+            "db_path": db_file,
+            "sql": "INSERT INTO projects (name, category) VALUES (?, ?);",
+            "params": ["RaavOne Tools", "Agent Framework"]
+        })
+        
+        print("🗄️ [Database] Querying projects table...")
+        db_query_res = await manager.execute("db_query", {
+            "db_path": db_file,
+            "sql": "SELECT * FROM projects LIMIT 5;"
+        })
+        for row in db_query_res.get("rows", []):
+            print(f"  - Project {row['id']}: {row['name']} ({row['category']})")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")
