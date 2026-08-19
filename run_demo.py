@@ -16,6 +16,8 @@ from raavone_tools.process.provider import ProcessProvider
 from raavone_tools.process.tool import ProcessListTool, ProcessStartTool, ProcessStopTool, ProcessInfoTool
 from raavone_tools.python.provider import PythonProvider
 from raavone_tools.python.tool import PythonExecuteTool, PythonRunFileTool, PythonEnvInfoTool
+from raavone_tools.search.provider import SearchProvider
+from raavone_tools.search.tool import WebSearchTool
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -72,6 +74,10 @@ async def main():
     manager.register_tool(PythonExecuteTool(provider=python_provider))
     manager.register_tool(PythonRunFileTool(provider=python_provider))
     manager.register_tool(PythonEnvInfoTool(provider=python_provider))
+    
+    # Register Search tools
+    search_provider = SearchProvider()
+    manager.register_tool(WebSearchTool(provider=search_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -239,6 +245,13 @@ async def main():
         env_res = await manager.execute("python_env_info", {})
         print(f"✅ Python Version: {env_res.get('python_version').splitlines()[0]}")
         print(f"📦 Installed packages count: {len(env_res.get('installed_packages', {}))}")
+
+        # 9h. Search Action: Query search engine
+        print("\n🔎 [Search] Querying web search for 'Python latest news'...")
+        search_res = await manager.execute("web_search", {"query": "Python latest news", "max_results": 2})
+        print(f"✅ Search Status: {search_res.get('status')}")
+        for idx, result in enumerate(search_res.get("results", [])):
+            print(f"  Result {idx+1}: {result.get('title')} ({result.get('url')})")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")
