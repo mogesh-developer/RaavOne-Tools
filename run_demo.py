@@ -10,6 +10,8 @@ from raavone_tools.http.provider import HttpProvider
 from raavone_tools.http.tool import HttpGetTool, HttpPostTool, HttpDownloadTool, HttpPutTool, HttpPatchTool, HttpDeleteTool
 from raavone_tools.archive.provider import ArchiveProvider
 from raavone_tools.archive.tool import CreateArchiveTool, ExtractArchiveTool, ListArchiveTool
+from raavone_tools.git.provider import GitProvider
+from raavone_tools.git.tool import GitStatusTool, GitLogTool
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -48,6 +50,11 @@ async def main():
     manager.register_tool(CreateArchiveTool(provider=archive_provider))
     manager.register_tool(ExtractArchiveTool(provider=archive_provider))
     manager.register_tool(ListArchiveTool(provider=archive_provider))
+    
+    # Register Git tools
+    git_provider = GitProvider(workspace_root=Path("."))
+    manager.register_tool(GitStatusTool(provider=git_provider))
+    manager.register_tool(GitLogTool(provider=git_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -166,6 +173,18 @@ async def main():
             {"archive_path": "project.zip", "dest_path": "extracted_demo"}
         )
         print("✅ ZIP extracted successfully to 'extracted_demo'")
+
+        # 9d. Git Action: Get status and log details
+        print("\n🐙 [Git] Fetching repository status...")
+        git_status_res = await manager.execute("git_status", {})
+        print(f"✅ Current Branch: {git_status_res.get('branch')}")
+        print(f"📦 Modified files count: {len(git_status_res.get('modified', []))}")
+        print(f"📦 Untracked files count: {len(git_status_res.get('untracked', []))}")
+
+        print("\n🐙 [Git] Fetching last 3 commits...")
+        git_log_res = await manager.execute("git_log", {"limit": 3})
+        for commit in git_log_res.get("commits", []):
+            print(f"  - [{commit['hash'][:7]}] {commit['message']} ({commit['author']} on {commit['date']})")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")
