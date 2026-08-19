@@ -20,6 +20,15 @@ from raavone_tools.search.provider import SearchProvider
 from raavone_tools.search.tool import WebSearchTool
 from raavone_tools.database.provider import BaseDatabaseProvider, SQLiteProvider
 from raavone_tools.database.tool import DbQueryTool, DbExecuteTool, DbTablesTool, DbSchemaTool
+from raavone_tools.docker.provider import DockerProvider
+from raavone_tools.docker.tool import (
+    DockerListContainersTool,
+    DockerStartContainerTool,
+    DockerStopContainerTool,
+    DockerRestartContainerTool,
+    DockerContainerLogsTool,
+    DockerListImagesTool,
+)
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -87,6 +96,15 @@ async def main():
     manager.register_tool(DbExecuteTool(provider=database_provider))
     manager.register_tool(DbTablesTool(provider=database_provider))
     manager.register_tool(DbSchemaTool(provider=database_provider))
+    
+    # Register Docker tools
+    docker_provider = DockerProvider()
+    manager.register_tool(DockerListContainersTool(provider=docker_provider))
+    manager.register_tool(DockerStartContainerTool(provider=docker_provider))
+    manager.register_tool(DockerStopContainerTool(provider=docker_provider))
+    manager.register_tool(DockerRestartContainerTool(provider=docker_provider))
+    manager.register_tool(DockerContainerLogsTool(provider=docker_provider))
+    manager.register_tool(DockerListImagesTool(provider=docker_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -278,6 +296,20 @@ async def main():
         })
         for row in db_query_res.get("rows", []):
             print(f"  - Project {row['id']}: {row['name']} ({row['category']})")
+
+        # 9j. Docker Action: List containers and images (handled safely if offline)
+        print("\n🐳 [Docker] Fetching local docker containers and images...")
+        try:
+            docker_list_res = await manager.execute("docker_list_containers", {"all_containers": True})
+            print(f"✅ Docker Status: success")
+            print(f"📦 Containers found: {docker_list_res.get('count')}")
+            for container in docker_list_res.get("containers", [])[:3]:
+                print(f"  - Container: {container.get('name')} | Status: {container.get('status')} | Image: {container.get('image')}")
+            
+            images_res = await manager.execute("docker_list_images", {})
+            print(f"📦 Local images count: {images_res.get('count')}")
+        except Exception as e:
+            print(f"⚠️ Docker check skipped (daemon likely offline or not installed): {e}")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")

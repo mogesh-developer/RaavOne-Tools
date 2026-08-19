@@ -177,6 +177,55 @@
                 params: [
                     { name: "table_name", label: "Table Name", type: "text", default: "projects" }
                 ]
+            },
+            "docker_list_containers": {
+                name: "Docker List Containers",
+                category: "docker",
+                desc: "List system docker containers with status, image and ports.",
+                params: [
+                    { name: "all_containers", label: "Show All Containers (true/false)", type: "text", default: "false" }
+                ]
+            },
+            "docker_start": {
+                name: "Docker Start Container",
+                category: "docker",
+                desc: "Start a stopped docker container.",
+                params: [
+                    { name: "container_id_or_name", label: "Container ID or Name", type: "text", default: "" }
+                ]
+            },
+            "docker_stop": {
+                name: "Docker Stop Container",
+                category: "docker",
+                desc: "Stop a running docker container.",
+                params: [
+                    { name: "container_id_or_name", label: "Container ID or Name", type: "text", default: "" },
+                    { name: "timeout", label: "Stop Timeout (seconds)", type: "number", default: 10 }
+                ]
+            },
+            "docker_restart": {
+                name: "Docker Restart Container",
+                category: "docker",
+                desc: "Restart a docker container.",
+                params: [
+                    { name: "container_id_or_name", label: "Container ID or Name", type: "text", default: "" },
+                    { name: "timeout", label: "Restart Timeout (seconds)", type: "number", default: 10 }
+                ]
+            },
+            "docker_logs": {
+                name: "Docker Logs",
+                category: "docker",
+                desc: "Retrieve standard logs from a target container.",
+                params: [
+                    { name: "container_id_or_name", label: "Container ID or Name", type: "text", default: "" },
+                    { name: "tail", label: "Lines count from end", type: "number", default: 100 }
+                ]
+            },
+            "docker_list_images": {
+                name: "Docker List Images",
+                category: "docker",
+                desc: "List local cached docker images.",
+                params: []
             }
         };
 
@@ -277,11 +326,13 @@
             runBtn.innerHTML = `<div class="spinner"></div> Running...`;
             consoleBox.innerHTML = `<div class="placeholder-text"><div class="spinner"></div> Executing tool command...</div>`;
 
-            // Gather arguments
+            // Gather arguments with boolean parsing
             const args = {};
             info.params.forEach(p => {
                 const val = document.getElementById(`input-${p.name}`).value;
-                args[p.name] = p.type === "number" ? Number(val) : val;
+                if (val === "true") args[p.name] = true;
+                else if (val === "false") args[p.name] = false;
+                else args[p.name] = p.type === "number" ? Number(val) : val;
             });
 
             log(`Triggered execution for ${info.name}`, "system");

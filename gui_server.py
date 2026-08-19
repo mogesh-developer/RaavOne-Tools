@@ -25,6 +25,15 @@ from raavone_tools.search.provider import SearchProvider
 from raavone_tools.search.tool import WebSearchTool
 from raavone_tools.database.provider import BaseDatabaseProvider, SQLiteProvider
 from raavone_tools.database.tool import DbQueryTool, DbExecuteTool, DbTablesTool, DbSchemaTool
+from raavone_tools.docker.provider import DockerProvider
+from raavone_tools.docker.tool import (
+    DockerListContainersTool,
+    DockerStartContainerTool,
+    DockerStopContainerTool,
+    DockerRestartContainerTool,
+    DockerContainerLogsTool,
+    DockerListImagesTool,
+)
 
 # Global Manager and Loop
 manager = ToolManager()
@@ -87,6 +96,15 @@ async def init_manager():
     manager.register_tool(DbExecuteTool(provider=database_provider))
     manager.register_tool(DbTablesTool(provider=database_provider))
     manager.register_tool(DbSchemaTool(provider=database_provider))
+    
+    # Register Docker tools
+    docker_provider = DockerProvider()
+    manager.register_tool(DockerListContainersTool(provider=docker_provider))
+    manager.register_tool(DockerStartContainerTool(provider=docker_provider))
+    manager.register_tool(DockerStopContainerTool(provider=docker_provider))
+    manager.register_tool(DockerRestartContainerTool(provider=docker_provider))
+    manager.register_tool(DockerContainerLogsTool(provider=docker_provider))
+    manager.register_tool(DockerListImagesTool(provider=docker_provider))
 
     await manager.initialize_providers()
     print("✅ All providers successfully initialized in async background thread.")
