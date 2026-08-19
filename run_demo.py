@@ -8,6 +8,8 @@ from raavone_tools.filesystem.provider import FilesystemProvider
 from raavone_tools.filesystem.tool import ReadFileTool, WriteFileTool, ListDirTool
 from raavone_tools.http.provider import HttpProvider
 from raavone_tools.http.tool import HttpGetTool, HttpPostTool, HttpDownloadTool, HttpPutTool, HttpPatchTool, HttpDeleteTool
+from raavone_tools.archive.provider import ArchiveProvider
+from raavone_tools.archive.tool import CreateArchiveTool, ExtractArchiveTool, ListArchiveTool
 
 async def main():
     print("🚀 Initializing ToolManager...")
@@ -40,6 +42,12 @@ async def main():
     manager.register_tool(HttpPatchTool(provider=http_provider))
     manager.register_tool(HttpDeleteTool(provider=http_provider))
     manager.register_tool(HttpDownloadTool(provider=http_provider))
+    
+    # Register Archive tools
+    archive_provider = ArchiveProvider(workspace_root=sandbox_dir)
+    manager.register_tool(CreateArchiveTool(provider=archive_provider))
+    manager.register_tool(ExtractArchiveTool(provider=archive_provider))
+    manager.register_tool(ListArchiveTool(provider=archive_provider))
     
     # Initialize all registered providers
     print("🔧 Initializing browser, filesystem, and HTTP providers...")
@@ -132,6 +140,32 @@ async def main():
             {"url": "https://jsonplaceholder.typicode.com/posts/1"}
         )
         print(f"✅ DELETE Status: {delete_res.get('status_code')}")
+
+        # 9a. Archive Action: Create a folder and compress it
+        print("\n📦 [Archive] Preparing files for archiving...")
+        await manager.execute("write_file", {"path": "project_to_zip/file1.txt", "content": "File 1 details"})
+        await manager.execute("write_file", {"path": "project_to_zip/file2.txt", "content": "File 2 details"})
+        
+        print("📦 [Archive] Creating ZIP archive from 'project_to_zip'...")
+        await manager.execute(
+            "archive_create",
+            {"source_path": "project_to_zip", "archive_path": "project.zip"}
+        )
+        print("✅ ZIP archive created: project.zip")
+
+        # 9b. Archive Action: List contents of ZIP archive
+        print("📦 [Archive] Listing files in project.zip...")
+        list_zip = await manager.execute("archive_list", {"archive_path": "project.zip"})
+        for file in list_zip.get("files", []):
+            print(f"  - {file['filename']} ({file['file_size']} bytes)")
+
+        # 9c. Archive Action: Extract contents to another folder
+        print("📦 [Archive] Extracting project.zip to 'extracted_demo'...")
+        await manager.execute(
+            "archive_extract",
+            {"archive_path": "project.zip", "dest_path": "extracted_demo"}
+        )
+        print("✅ ZIP extracted successfully to 'extracted_demo'")
 
         # 10. Filesystem Action: Create a log/report file
         print("\n📁 [Filesystem] Writing audit report to sandbox/report.txt...")
