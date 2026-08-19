@@ -151,3 +151,130 @@ class ScrollTool(BaseTool[BrowserProvider]):
         except Exception as e:
             raise ExecutionError(f"Failed to scroll: {e}") from e
 
+
+# --- Extract Tool ---
+
+class ExtractInput(BaseModel):
+    """Input parameters for the extract tool."""
+    selector: Optional[str] = Field(None, description="CSS or XPath selector to scope/filter the extraction")
+    mode: Literal["text", "html", "links", "images", "elements", "tables"] = Field(
+        "text",
+        description="Type of extraction: 'text', 'html', 'links', 'images', 'elements', 'tables'"
+    )
+
+
+class ExtractTool(BaseTool[BrowserProvider]):
+    """Tool that extracts text or structured data from the current webpage."""
+
+    name: str = "extract"
+    description: str = "Extract page contents such as text, HTML, links, images, tables, or elements using selectors."
+    input_schema: Type[BaseModel] = ExtractInput
+
+    async def execute(
+        self,
+        selector: Optional[str] = None,
+        mode: Literal["text", "html", "links", "images", "elements", "tables"] = "text",
+    ) -> Dict[str, Any]:
+        """Perform the extraction based on the selected mode and selector."""
+        if not self.provider:
+            raise ProviderError("BrowserProvider has not been assigned to this tool.")
+
+        page = await self.provider.get_page()
+        try:
+            if mode == "text":
+                if selector:
+                    locators = page.locator(selector)
+                    count = await locators.count()
+                    texts = [await locators.nth(i).inner_text() for i in range(count)]
+                    return {"status": "success", "mode": mode, "data": texts}
+                else:
+                    text_content = await page.locator("body").inner_text()
+                    return {"status": "success", "mode": mode, "data": text_content}
+
+            elif mode == "html":
+                if selector:
+                    locators = page.locator(selector)
+                    count = await locators.count()
+                    htmls = [await locators.nth(i).inner_html() for i in range(count)]
+                    return {"status": "success", "mode": mode, "data": htmls}
+                else:
+                    content = await page.content()
+                    return {"status": "success", "mode": mode, "data": content}
+
+            elif mode == "links":
+                target_selector = f"{selector} a" if selector else "a"
+                locators = page.locator(target_selector)
+                count = await locators.count()
+                links = []
+                for i in range(count):
+                    loc = locators.nth(i)
+                    href = await loc.get_attribute("href")
+                    text = await loc.inner_text()
+                    links.append({"text": text.strip(), "href": href})
+                return {"status": "success", "mode": mode, "data": links}
+
+            elif mode == "images":
+                target_selector = f"{selector} img" if selector else "img"
+                locators = page.locator(target_selector)
+                count = await locators.count()
+                images = []
+                for i in range(count):
+                    loc = locators.nth(i)
+                    src = await loc.get_attribute("src")
+                    alt = await loc.get_attribute("alt") or ""
+                    images.append({"src": src, "alt": alt})
+                return {"status": "success", "mode": mode, "data": images}
+
+            elif mode == "elements":
+                if not selector:
+                    raise ExecutionError("A selector must be provided when extracting elements.")
+                locators = page.locator(selector)
+                count = await locators.count()
+                elements = []
+                for i in range(count):
+                    loc = locators.nth(i)
+                    tag = await loc.evaluate("el => el.tagName.toLowerCase()")
+                    text = await loc.inner_text()
+                    # Extract attributes via JS
+                    attrs = await loc.evaluate("""el => {
+                        const attrs = {};
+                        for (let attr of el.attributes) {
+                            attrs[attr.name] = attr.value;
+                        }
+                        return attrs;
+                    }""")
+                    elements.append({
+                        "tag": tag,
+                        "text": text.strip(),
+                        "attributes": attrs
+                    })
+                return {"status": "success", "mode": mode, "data": elements}
+
+            elif mode == "tables":
+                target_selector = f"{selector} table" if selector else "table"
+                locators = page.locator(target_selector)
+                count = await locators.count()
+                tables = []
+                for t in range(count):
+                    table_loc = locators.nth(t)
+                    rows = []
+                    # Get all rows
+                    row_locators = table_loc.locator("tr")
+                    row_count = await row_locators.count()
+                    for r in range(row_count):
+                        row_loc = row_locators.nth(r)
+                        # Find all headers or cells
+                        cell_locators = row_loc.locator("th, td")
+                        cell_count = await cell_locators.count()
+                        cells = [await cell_locators.nth(c).inner_text() for c in range(cell_count)]
+                        rows.append(cells)
+                    tables.append(rows)
+                return {"status": "success", "mode": mode, "data": tables}
+
+            else:
+                raise ExecutionError(f"Unsupported extraction mode: {mode}")
+
+        except Exception as e:
+            raise ExecutionError(f"Extraction failed: {e}") from e
+
+

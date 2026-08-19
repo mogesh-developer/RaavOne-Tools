@@ -1,7 +1,7 @@
 """Browser tools and provider module."""
 
 from raavone_tools.browser.provider import BrowserProvider
-from raavone_tools.browser.tool import ClickTool, NavigateTool, ScreenshotTool, ScrollTool
+from raavone_tools.browser.tool import ClickTool, NavigateTool, ScreenshotTool, ScrollTool, ExtractTool
 
 __all__ = [
     "BrowserProvider",
@@ -9,4 +9,5 @@ __all__ = [
     "ClickTool",
     "ScreenshotTool",
     "ScrollTool",
+    "ExtractTool",
 ]
