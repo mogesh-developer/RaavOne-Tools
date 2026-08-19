@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RaavOne Tools - UI Test Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-compass-drafting logo-icon"></i>
+            <div class="logo-text">
+                <h1>RaavOne Tools</h1>
+                <p>Interactive Agent Capability Dashboard</p>
+            </div>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            <span>System Online</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left Panel: Capability Cards Selection -->
+        <div class="panel">
+            <div class="panel-title">
+                <i class="fa-solid fa-cubes"></i>
+                <h2>Select Capability Tool</h2>
+            </div>
+            
+            <div class="tools-grid" id="toolsGrid">
+                <!-- Cards will render here dynamically -->
+            </div>
+        </div>
+
+        <!-- Right Panel: Configurations and Execution Logs -->
+        <div class="panel">
+            <div class="panel-title">
+                <i class="fa-solid fa-sliders"></i>
+                <h2 id="configTitle">Configure Parameters</h2>
+            </div>
+
+            <div class="parameters-section" id="paramsSection">
+                <div class="placeholder-text" id="paramsPlaceholder">
+                    Select a tool card to configure parameters and run.
+                </div>
+                <!-- Dynamic form fields render here -->
+            </div>
+
+            <div class="panel-title">
+                <i class="fa-solid fa-terminal"></i>
+                <h2>Output Terminal View</h2>
+            </div>
+
+            <div class="output-console" id="outputConsole">
+                <div class="placeholder-text">
+                    Await execution returns...
+                </div>
+            </div>
+
+            <div class="terminal-log" id="terminalLogs">
+                <div class="log-item"><span class="log-time">[System]</span> Dashboard initialized successfully.</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const toolsInfo = {
+            "web_search": {
+                name: "Web Search",
+                category: "search",
+                desc: "Query DuckDuckGo for live structured web search data.",
+                params: [
+                    { name: "query", label: "Search Query", type: "text", default: "Python programming" },
+                    { name: "max_results", label: "Max Results Limit", type: "number", default: 3 }
+                ]
+            },
+            "python_execute": {
+                name: "Python Execute",
+                category: "python",
+                desc: "Run Python code asynchronously in a secure subprocess.",
+                params: [
+                    { name: "code", label: "Python Source Code", type: "textarea", default: "print('Hello from PythonExecuteTool!')\nnumbers = [10, 20, 30]\nprint(f'Average: {sum(numbers)/len(numbers)}')" },
+                    { name: "timeout", label: "Timeout (seconds)", type: "number", default: 15 }
+                ]
+            },
+            "python_env_info": {
+                name: "Python Env Info",
+                category: "python",
+                desc: "Fetch Python interpreter version and installed pip package versions.",
+                params: []
+            },
+            "git_status": {
+                name: "Git Status",
+                category: "git",
+                desc: "Retrieve current git branch and staged/modified/untracked files list.",
+                params: []
+            },
+            "git_log": {
+                name: "Git Log",
+                category: "git",
+                desc: "Get local git commits details list in structured format.",
+                params: [
+                    { name: "limit", label: "Log Count Limit", type: "number", default: 5 }
+                ]
+            },
+            "process_list": {
+                name: "Process List",
+                category: "process",
+                desc: "List active system processes with CPU and memory usage statistics.",
+                params: [
+                    { name: "name_filter", label: "Filter Process Name", type: "text", default: "python" },
+                    { name: "limit", label: "Limit Results Count", type: "number", default: 5 }
+                ]
+            },
+            "process_info": {
+                name: "Process Info",
+                category: "process",
+                desc: "Get memory statistics and port connections of a specific process.",
+                params: [
+                    { name: "pid", label: "Process ID (PID)", type: "number", default: 0 }
+                ]
+            },
+            "list_dir": {
+                name: "List Directory",
+                category: "filesystem",
+                desc: "List files inside the active sandbox directory.",
+                params: [
+                    { name: "path", label: "Relative Path", type: "text", default: "." }
+                ]
+            },
+            "read_file": {
+                name: "Read File",
+                category: "filesystem",
+                desc: "Read file contents from the sandbox folder.",
+                params: [
+                    { name: "path", label: "File Path", type: "text", default: "report.txt" }
+                ]
+            },
+            "http_get": {
+                name: "HTTP GET",
+                category: "http",
+                desc: "Send HTTP GET request to external API.",
+                params: [
+                    { name: "url", label: "API URL", type: "text", default: "https://jsonplaceholder.typicode.com/posts/1" }
+                ]
+            }
+        };
+
+        let selectedTool = null;
+
+        function log(message, type = "system") {
+            const container = document.getElementById("terminalLogs");
+            const time = new Date().toLocaleTimeString();
+            const typeClass = type === "success" ? "log-success" : (type === "error" ? "log-error" : "");
+            
+            const item = document.createElement("div");
+            item.className = "log-item";
+            item.innerHTML = `<span class="log-time">[${time}]</span> <span class="${typeClass}">${message}</span>`;
+            container.appendChild(item);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Initialize cards
+        function initDashboard() {
+            const grid = document.getElementById("toolsGrid");
+            grid.innerHTML = "";
+
+            Object.entries(toolsInfo).forEach(([key, info]) => {
+                const card = document.createElement("div");
+                card.className = "tool-card";
+                card.id = `card-${key}`;
+                card.onclick = () => selectTool(key);
+
+                card.innerHTML = `
+                    <div class="tool-header">
+                        <span class="tool-name">${info.name}</span>
+                        <span class="tool-badge badge-${info.category}">${info.category}</span>
+                    </div>
+                    <span class="tool-desc">${info.desc}</span>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function selectTool(key) {
+            // Remove active classes
+            document.querySelectorAll(".tool-card").forEach(c => c.classList.remove("active"));
+            
+            // Add active class
+            document.getElementById(`card-${key}`).classList.add("active");
+            selectedTool = key;
+
+            const info = toolsInfo[key];
+            document.getElementById("configTitle").innerText = `Configure: ${info.name}`;
+            
+            const paramsSection = document.getElementById("paramsSection");
+            paramsSection.innerHTML = "";
+
+            if (info.params.length === 0) {
+                paramsSection.innerHTML = `<p style="color: var(--text-secondary); font-size: 0.95rem;">This tool does not require any parameters.</p>`;
+            } else {
+                info.params.forEach(param => {
+                    const group = document.createElement("div");
+                    group.className = "form-group";
+
+                    let inputHtml = "";
+                    if (param.type === "textarea") {
+                        inputHtml = `<textarea id="input-${param.name}" rows="5">${param.default}</textarea>`;
+                    } else if (param.type === "number") {
+                        inputHtml = `<input type="number" id="input-${param.name}" value="${param.default}">`;
+                    } else {
+                        inputHtml = `<input type="text" id="input-${param.name}" value="${param.default}">`;
+                    }
+
+                    group.innerHTML = `
+                        <label>${param.label}</label>
+                        ${inputHtml}
+                    `;
+                    paramsSection.appendChild(group);
+                });
+            }
+
+            // Append Run Button
+            const runBtn = document.createElement("button");
+            runBtn.className = "btn-run";
+            runBtn.id = "runBtn";
+            runBtn.onclick = executeTool;
+            runBtn.innerHTML = `<i class="fa-solid fa-play"></i> Run Tool`;
+            paramsSection.appendChild(runBtn);
+
+            log(`Selected tool '${info.name}'`);
+        }
+
+        async function executeTool() {
+            if (!selectedTool) return;
+
+            const runBtn = document.getElementById("runBtn");
+            const consoleBox = document.getElementById("outputConsole");
+            const info = toolsInfo[selectedTool];
+
+            // Setup loading state
+            runBtn.disabled = true;
+            runBtn.innerHTML = `<div class="spinner"></div> Running...`;
+            consoleBox.innerHTML = `<div class="placeholder-text"><div class="spinner"></div> Executing tool command...</div>`;
+
+            // Gather arguments
+            const args = {};
+            info.params.forEach(p => {
+                const val = document.getElementById(`input-${p.name}`).value;
+                args[p.name] = p.type === "number" ? Number(val) : val;
+            });
+
+            log(`Triggered execution for ${info.name}`, "system");
+
+            try {
+                const response = await fetch("/api/execute", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tool: selectedTool, arguments: args })
+                });
+
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    consoleBox.innerHTML = `<code style="color: var(--accent-green);">${JSON.stringify(data.result, null, 2)}</code>`;
+                    log(`Tool '${info.name}' completed with success status.`, "success");
+                } else {
+                    consoleBox.innerHTML = `<code style="color: #f43f5e;">${JSON.stringify(data, null, 2)}</code>`;
+                    log(`Tool '${info.name}' execution failed.`, "error");
+                }
+            } catch (err) {
+                consoleBox.innerHTML = `<code style="color: #f43f5e;">Network/Server error: ${err.message}</code>`;
+                log(`Server Connection Failed: ${err.message}`, "error");
+            } finally {
+                runBtn.disabled = false;
+                runBtn.innerHTML = `<i class="fa-solid fa-play"></i> Run Tool`;
+            }
+        }
+
+        // Initialize grid on load
+        window.onload = () => {
+            initDashboard();
+        };
+    </script>
+</body>
+</html>
