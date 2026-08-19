@@ -23,7 +23,7 @@ from raavone_tools.python.provider import PythonProvider
 from raavone_tools.python.tool import PythonExecuteTool, PythonEnvInfoTool
 from raavone_tools.search.provider import SearchProvider
 from raavone_tools.search.tool import WebSearchTool
-from raavone_tools.database.provider import DatabaseProvider
+from raavone_tools.database.provider import BaseDatabaseProvider, SQLiteProvider
 from raavone_tools.database.tool import DbQueryTool, DbExecuteTool, DbTablesTool, DbSchemaTool
 
 # Global Manager and Loop
@@ -82,7 +82,7 @@ async def init_manager():
     manager.register_tool(WebSearchTool(provider=search_provider))
     
     # Register Database tools
-    database_provider = DatabaseProvider(workspace_root=sandbox_dir)
+    database_provider = SQLiteProvider(workspace_root=sandbox_dir, db_path="demo.db")
     manager.register_tool(DbQueryTool(provider=database_provider))
     manager.register_tool(DbExecuteTool(provider=database_provider))
     manager.register_tool(DbTablesTool(provider=database_provider))

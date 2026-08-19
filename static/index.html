@@ -153,7 +153,6 @@
                 category: "database",
                 desc: "Query SQLite database using parameterized SQL SELECT statement.",
                 params: [
-                    { name: "db_path", label: "DB File Path", type: "text", default: "demo.db" },
                     { name: "sql", label: "SQL Query", type: "text", default: "SELECT * FROM projects LIMIT 5" }
                 ]
             },
@@ -162,7 +161,6 @@
                 category: "database",
                 desc: "Execute CREATE, INSERT, UPDATE or DELETE SQL statements.",
                 params: [
-                    { name: "db_path", label: "DB File Path", type: "text", default: "demo.db" },
                     { name: "sql", label: "SQL Statement", type: "text", default: "CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name TEXT)" }
                 ]
             },
@@ -170,16 +168,13 @@
                 name: "Database Tables",
                 category: "database",
                 desc: "List user tables in SQLite database.",
-                params: [
-                    { name: "db_path", label: "DB File Path", type: "text", default: "demo.db" }
-                ]
+                params: []
             },
             "db_schema": {
                 name: "Database Schema",
                 category: "database",
                 desc: "Retrieve column and primary key schema of a SQLite table.",
                 params: [
-                    { name: "db_path", label: "DB File Path", type: "text", default: "demo.db" },
                     { name: "table_name", label: "Table Name", type: "text", default: "projects" }
                 ]
             }

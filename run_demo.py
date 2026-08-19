@@ -18,7 +18,7 @@ from raavone_tools.python.provider import PythonProvider
 from raavone_tools.python.tool import PythonExecuteTool, PythonRunFileTool, PythonEnvInfoTool
 from raavone_tools.search.provider import SearchProvider
 from raavone_tools.search.tool import WebSearchTool
-from raavone_tools.database.provider import DatabaseProvider
+from raavone_tools.database.provider import BaseDatabaseProvider, SQLiteProvider
 from raavone_tools.database.tool import DbQueryTool, DbExecuteTool, DbTablesTool, DbSchemaTool
 
 async def main():
@@ -82,7 +82,7 @@ async def main():
     manager.register_tool(WebSearchTool(provider=search_provider))
     
     # Register Database tools
-    database_provider = DatabaseProvider(workspace_root=sandbox_dir)
+    database_provider = SQLiteProvider(workspace_root=sandbox_dir, db_path="demo.db")
     manager.register_tool(DbQueryTool(provider=database_provider))
     manager.register_tool(DbExecuteTool(provider=database_provider))
     manager.register_tool(DbTablesTool(provider=database_provider))
@@ -264,20 +264,16 @@ async def main():
 
         # 9i. Database Action: Initialize and query SQLite database
         print("\n🗄️ [Database] Creating sqlite database and projects table...")
-        db_file = "demo.db"
         await manager.execute("db_execute", {
-            "db_path": db_file,
             "sql": "CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY, name TEXT, category TEXT);"
         })
         await manager.execute("db_execute", {
-            "db_path": db_file,
             "sql": "INSERT INTO projects (name, category) VALUES (?, ?);",
             "params": ["RaavOne Tools", "Agent Framework"]
         })
         
         print("🗄️ [Database] Querying projects table...")
         db_query_res = await manager.execute("db_query", {
-            "db_path": db_file,
             "sql": "SELECT * FROM projects LIMIT 5;"
         })
         for row in db_query_res.get("rows", []):

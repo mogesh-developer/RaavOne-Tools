@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 from raavone_tools.manager import ToolManager
-from raavone_tools.database.provider import DatabaseProvider
+from raavone_tools.database.provider import SQLiteProvider
 from raavone_tools.database.tool import (
     DbQueryTool,
     DbExecuteTool,
@@ -19,7 +19,9 @@ async def test_database_workflow():
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace_root = Path(tmpdir)
         manager = ToolManager()
-        provider = DatabaseProvider(workspace_root=workspace_root)
+        
+        # Connection details are bound to the provider instance
+        provider = SQLiteProvider(workspace_root=workspace_root, db_path="test.db")
         
         manager.register_tool(DbQueryTool(provider=provider))
         manager.register_tool(DbExecuteTool(provider=provider))
@@ -29,17 +31,14 @@ async def test_database_workflow():
         await manager.initialize_providers()
         
         try:
-            db_path = "test.db"
-            
-            # 1. Create table
+            # 1. Create table (db_path is not needed in execute)
             create_sql = "CREATE TABLE projects (id INTEGER PRIMARY KEY, title TEXT, stars INTEGER);"
-            res_create = await manager.execute("db_execute", {"db_path": db_path, "sql": create_sql})
+            res_create = await manager.execute("db_execute", {"sql": create_sql})
             assert res_create["status"] == "success"
 
             # 2. Insert records
             insert_sql = "INSERT INTO projects (title, stars) VALUES (?, ?);"
             res_insert1 = await manager.execute("db_execute", {
-                "db_path": db_path,
                 "sql": insert_sql,
                 "params": ["RaavOne", 150]
             })
@@ -47,18 +46,17 @@ async def test_database_workflow():
             assert res_insert1["last_row_id"] == 1
 
             await manager.execute("db_execute", {
-                "db_path": db_path,
                 "sql": insert_sql,
                 "params": ["AMC-Bot", 80]
             })
 
             # 3. Query tables list
-            res_tables = await manager.execute("db_tables", {"db_path": db_path})
+            res_tables = await manager.execute("db_tables", {})
             assert res_tables["status"] == "success"
             assert "projects" in res_tables["tables"]
 
             # 4. Query table schema
-            res_schema = await manager.execute("db_schema", {"db_path": db_path, "table_name": "projects"})
+            res_schema = await manager.execute("db_schema", {"table_name": "projects"})
             assert res_schema["status"] == "success"
             assert len(res_schema["columns"]) == 3
             col_names = {c["name"] for c in res_schema["columns"]}
@@ -68,7 +66,6 @@ async def test_database_workflow():
             # 5. Query records
             query_sql = "SELECT * FROM projects WHERE stars > ? ORDER BY stars DESC;"
             res_query = await manager.execute("db_query", {
-                "db_path": db_path,
                 "sql": query_sql,
                 "params": [50]
             })
@@ -77,14 +74,14 @@ async def test_database_workflow():
             assert res_query["rows"][0]["title"] == "RaavOne"
             assert res_query["rows"][0]["stars"] == 150
 
-            # 6. Security Check: path outside boundary
-            with pytest.raises(ExecutionError) as exc_info:
-                await manager.execute("db_tables", {"db_path": "../outside.db"})
-            assert "Security Validation Error" in str(exc_info.value)
+            # 6. Security Check: Path validation outside workspace during provider construction
+            with pytest.raises(SecurityValidationError) as exc_info:
+                SQLiteProvider(workspace_root=workspace_root, db_path="../outside.db")
+            assert "lies outside workspace boundary" in str(exc_info.value)
 
             # 7. Security Check: Invalid table name SQL injection
             with pytest.raises(ExecutionError) as exc_info2:
-                await manager.execute("db_schema", {"db_path": db_path, "table_name": "projects; DROP TABLE projects"})
+                await manager.execute("db_schema", {"table_name": "projects; DROP TABLE projects"})
             assert "Security ValidationError" in str(exc_info2.value)
 
         finally:
